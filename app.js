@@ -4,6 +4,8 @@ const productRoutes = require('./routes/product.routes');
 const authRoutes = require('./routes/auth.routes');
 const cartRoutes = require('./routes/cart.routes');
 const orderRoutes = require('./routes/order.routes');
+const orderController = require('./controllers/order.controller');
+const authMiddleware = require('./middlewares/auth');
 
 const app = express();
 
@@ -16,6 +18,9 @@ app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+
+// Alias directo para evitar 404 si las rutas no se recargan
+app.post('/api/orders/preview', authMiddleware, orderController.previewOrder);
 
 // Ruta de prueba
 app.get('/', (req, res) => {

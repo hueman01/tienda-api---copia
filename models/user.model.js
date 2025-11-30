@@ -1,53 +1,52 @@
-const { sql, getConnection } = require('./db'); // Asegúrate que la ruta es correcta
+const { mongoose, connect } = require('./db');
+const bcrypt = require('bcryptjs');
+
+const userSchema = new mongoose.Schema(
+  {
+    Nombre: { type: String, required: true, trim: true },
+    Email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    PasswordHash: { type: String, required: true },
+    Direccion: { type: String, default: '' }
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+async function ensureConnection() {
+  await connect();
+}
 
 async function createUser(user) {
-  try {
-    const pool = await getConnection();
-    const result = await pool.request()
-      .input('nombre', sql.NVarChar, user.name)
-      .input('email', sql.NVarChar, user.email)
-      .input('password', sql.NVarChar, user.password) // contraseña sin encriptar
-      .input('direccion', sql.NVarChar, user.address)
-      .query(`INSERT INTO Usuarios (Nombre, Email, Password, Direccion)
-              OUTPUT INSERTED.Id
-              VALUES (@nombre, @email, @password, @direccion)`);
-    
-    return result.recordset[0].Id;
-  } catch (error) {
-    console.error('Error al crear usuario:', error);
-    throw error;
-  }
+  await ensureConnection();
+  const hash = await bcrypt.hash(user.password, 10);
+  const created = await User.create({
+    Nombre: user.name,
+    Email: user.email,
+    PasswordHash: hash,
+    Direccion: user.address || ''
+  });
+  return created._id.toString();
 }
 
 async function getUserByEmail(email) {
-  try {
-    const pool = await getConnection();
-    const result = await pool.request()
-      .input('email', sql.NVarChar, email)
-      .query('SELECT * FROM Usuarios WHERE Email = @email');
-    
-    return result.recordset[0];
-  } catch (error) {
-    console.error('Error al obtener usuario por email:', error);
-    throw error;
-  }
+  await ensureConnection();
+  const doc = await User.findOne({ Email: email.toLowerCase() }).lean();
+  return doc
+    ? { Id: doc._id.toString(), Nombre: doc.Nombre, Email: doc.Email, PasswordHash: doc.PasswordHash, Direccion: doc.Direccion }
+    : null;
 }
 
 async function getUserById(id) {
-  try {
-    const pool = await getConnection();
-    const result = await pool.request()
-      .input('id', sql.Int, id)
-      .query('SELECT Id, Nombre, Email, Direccion FROM Usuarios WHERE Id = @id');
-    
-    return result.recordset[0];
-  } catch (error) {
-    console.error('Error al obtener usuario por ID:', error);
-    throw error;
-  }
+  await ensureConnection();
+  const doc = await User.findById(id).lean();
+  return doc
+    ? { Id: doc._id.toString(), Nombre: doc.Nombre, Email: doc.Email, Direccion: doc.Direccion }
+    : null;
 }
 
 module.exports = {
+  User,
   createUser,
   getUserByEmail,
   getUserById
