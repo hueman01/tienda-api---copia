@@ -99,6 +99,8 @@ exports.createOrder = async (req, res) => {
       preview: false
     });
 
+    await orderModel.saveInvoice(orderId, pdfBuffer, `pedido-${orderId}.pdf`);
+
     res.status(201).json({
       orderId,
       message: 'Pedido creado con exito',
@@ -144,10 +146,28 @@ exports.getOrderDetails = async (req, res) => {
       Total: orderInfo.Total,
       DireccionEnvio: orderInfo.DireccionEnvio,
       Estado: orderInfo.Estado,
-      Items: items
+      Items: items,
+      hasInvoice: Boolean(data.hasInvoice)
     });
   } catch (error) {
     console.error('Error al obtener detalles del pedido:', error);
     res.status(500).json({ message: error.message || 'Error al obtener detalles del pedido' });
+  }
+};
+
+exports.getInvoice = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const invoice = await orderModel.getInvoice(orderId, req.user.id);
+    if (!invoice) {
+      return res.status(404).json({ message: 'Boleta no encontrada' });
+    }
+    res.status(200).json({
+      pdfBase64: invoice.buffer.toString('base64'),
+      filename: invoice.fileName || `pedido-${orderId}.pdf`
+    });
+  } catch (error) {
+    console.error('Error al obtener boleta:', error);
+    res.status(500).json({ message: error.message || 'Error al obtener boleta' });
   }
 };

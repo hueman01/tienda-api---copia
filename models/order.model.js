@@ -17,7 +17,10 @@ const orderSchema = new mongoose.Schema(
     items: [orderItemSchema],
     total: { type: Number, required: true },
     address: { type: String, required: true },
-    status: { type: String, default: 'Procesando' }
+    status: { type: String, default: 'Procesando' },
+    invoicePdf: { type: Buffer, default: null },
+    invoiceFileName: { type: String, default: '' },
+    invoiceMime: { type: String, default: 'application/pdf' }
   },
   { timestamps: true }
 );
@@ -42,6 +45,31 @@ async function createOrder(userId, items, total, address, session) {
   });
   const order = Array.isArray(created) ? created[0] : created;
   return order._id.toString();
+}
+
+async function saveInvoice(orderId, pdfBuffer, filename) {
+  await ensureConnection();
+  await Order.updateOne(
+    { _id: orderId },
+    {
+      $set: {
+        invoicePdf: pdfBuffer,
+        invoiceFileName: filename || `pedido-${orderId}.pdf`,
+        invoiceMime: 'application/pdf'
+      }
+    }
+  );
+}
+
+async function getInvoice(orderId, userId) {
+  await ensureConnection();
+  const order = await Order.findOne({ _id: orderId, userId }).lean();
+  if (!order || !order.invoicePdf) return null;
+  return {
+    buffer: order.invoicePdf,
+    fileName: order.invoiceFileName || `pedido-${orderId}.pdf`,
+    mime: order.invoiceMime || 'application/pdf'
+  };
 }
 
 async function getOrderHistory(userId) {
@@ -72,7 +100,8 @@ async function getOrderDetails(userId, orderId) {
       ImagenUrl: i.imagenUrl,
       Cantidad: i.quantity,
       PrecioUnitario: i.price
-    }))
+    })),
+    hasInvoice: Boolean(order.invoicePdf)
   };
 }
 
@@ -80,5 +109,7 @@ module.exports = {
   Order,
   createOrder,
   getOrderHistory,
-  getOrderDetails
+  getOrderDetails,
+  saveInvoice,
+  getInvoice
 };
